@@ -107,9 +107,9 @@ class TelegramBot:
                                        graph_type=GraphType.DEATHS_WEEK)
             return True
 
-        if text == '/recovered_week' or text == '‎🌏 Recovered AVG':
-            self.send_photo_tg_general(stat_type=StatType.RECOVERED, chat_id=chat_id,
-                                       graph_type=GraphType.RECOVERED_WEEK)
+        if text == '/cases_per_1m' or text == '‎🌏 Cases per 1M':
+            self.send_photo_tg_general(stat_type=StatType.CONFIRMED, chat_id=chat_id,
+                                       graph_type=GraphType.CONFIRMED_1M_PEOPLE)
             return True
 
         if text == '/cases_bar' or text == '‎🌏 Cases (bar)':
@@ -218,7 +218,7 @@ class TelegramBot:
                                        [
                                            KeyboardButton(text="‎🌏 Cases AVG"),
                                            KeyboardButton(text="‎🌏 Fatal AVG"),
-                                           KeyboardButton(text="‎🌏 Recovered AVG")
+                                           KeyboardButton(text="‎🌏 Cases per 1M")
                                        ],
                                        [
                                            KeyboardButton(text="‎🌏 Cases"),
@@ -272,7 +272,9 @@ class TelegramBot:
             tg_utils.send_photo_file(self.tgBOT, photo_stream, chat_id)
         else:  # get new data or rewrite existing one
 
-            if graph_type == GraphType.CONFIRMED_BAR or \
+            if graph_type == GraphType.CONFIRMED_1M_PEOPLE:
+                plot_tuple = plot_utils.generate_world_stat_10_per_million(stat_type)
+            elif graph_type == GraphType.CONFIRMED_BAR or \
                     graph_type == GraphType.DEATHS_BAR or \
                     graph_type == GraphType.RECOVERED_BAR:
                 plot_tuple = plot_utils.generate_bar_world_stat_10(stat_type)
@@ -286,3 +288,5 @@ class TelegramBot:
             if plot_tuple is not None:
                 fig, ax = plot_tuple
                 tg_utils.send_photo_fig(self.tgBOT, chat_id=chat_id, fig=fig, graph_type=graph_type)
+            else:
+                print('Plot not constructed ' + graph_type.to_name())

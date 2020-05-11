@@ -67,14 +67,17 @@ class StatType(IntEnum):
     RECOVERED = 1,
     CONFIRMED = 2
 
-    def to_name(self):
-        return STAT_TYPES[self.value]
+    def to_data_name(self):
+        return STAT_TYPES[self.value]['format']
+
+    def to_title(self):
+        return STAT_TYPES[self.value]['title']
 
 
 STAT_TYPES = {
-    StatType.DEATHS: 'deaths',
-    StatType.RECOVERED: 'recovered',
-    StatType.CONFIRMED: 'confirmed'
+    StatType.DEATHS: {'format': 'deaths', 'title': 'fatal'},
+    StatType.RECOVERED: {'format': 'recovered', 'title': 'recovered'},
+    StatType.CONFIRMED: {'format': 'confirmed', 'title': 'cases'}
 }
 
 
@@ -93,9 +96,11 @@ class GraphType(IntEnum):
 
     DEATHS_ACTIVE = 9,
     RECOVERED_ACTIVE = 10,
-    CONFIRMED_ACTIVE = 11
+    CONFIRMED_ACTIVE = 11,
 
-    def to_name(self):
+    CONFIRMED_1M_PEOPLE = 12
+
+    def to_name(self) -> str:
         return GRAPH_TYPES[self.value]
 
 
@@ -114,5 +119,7 @@ GRAPH_TYPES = {
 
     GraphType.DEATHS_BAR: 'deaths_bar',
     GraphType.RECOVERED_BAR: 'recovered_bar',
-    GraphType.CONFIRMED_BAR: 'confirmed_bar'
+    GraphType.CONFIRMED_BAR: 'confirmed_bar',
+
+    GraphType.CONFIRMED_1M_PEOPLE: 'confirmed_1m_people'
 }

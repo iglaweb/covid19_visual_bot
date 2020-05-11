@@ -7,6 +7,7 @@ import numpy as np
 from matplotlib.dates import DateFormatter
 from matplotlib.ticker import FuncFormatter
 
+import io_utils
 import virus_utils
 from models import StatType, Country
 
@@ -18,7 +19,6 @@ def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
         return None
 
     most_areas = get_most_countries(data, stat_type)
-
     fig, ax = plt.subplots()
 
     for k, v in most_areas:
@@ -33,7 +33,7 @@ def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
             dt = datetime(year=year, month=month, day=day)
 
             x.append(dt)
-            cell_value = date[stat_type.to_name()]
+            cell_value = date[stat_type.to_data_name()]
             y.append(virus_utils.num(cell_value))
         ax.plot(x, y, label=v[0]['title'])  # for each country
 
@@ -42,10 +42,18 @@ def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
 
-    plt.grid(True)
+    # Show the major grid lines with dark grey lines
+    plt.grid(b=True, which='major', color='#666666', linestyle='-')
+
+    plt.minorticks_on()
+    plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
     plt.xlabel('Day')
-    plt.ylabel(stat_type.to_name().title())
+    plt.ylabel(stat_type.to_title().title())
     plt.legend(loc="upper left")
+
+    ax.set_title(f'{stat_type.to_title().title()} statistics – 10 Most Countries')
+
     return fig, ax
 
 
@@ -62,7 +70,7 @@ def generate_bar_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]
 
     dct = defaultdict(list)
     for country_title, dates in data.items():
-        total = dates[-1][stat_type.to_name()]  # just last element
+        total = dates[-1][stat_type.to_data_name()]  # just last element
         dct[total].append(country_title)
 
     sorted_dict = sorted(dct.items(), reverse=True)
@@ -84,8 +92,8 @@ def generate_bar_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]
     ax.set_yticklabels(x)
     ax.set_yticks(np.arange(len(x)))
 
-    ax.set_xlabel(stat_type.to_name().title())
-    ax.set_title(f'{stat_type.to_name().title()} statistics – 10 Most Countries')
+    ax.set_xlabel(stat_type.to_title().title())
+    ax.set_title(f'{stat_type.to_title().title()} statistics – 10 Most Countries')
 
     for i, count in enumerate(y):
         ax.text(count, i, " " + f'{count:,}', color='blue', va='center')  # print big nums with comma
@@ -129,11 +137,11 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
     x = []
     y = []
     for idx, item in enumerate(country_data):
-        cell_value = virus_utils.num(item[stat_type.to_name()])
+        cell_value = virus_utils.num(item[stat_type.to_data_name()])
         if cell_value < 1:
             continue
         # since api means only total values
-        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_name()])
+        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_data_name()])
         actual_diff = cell_value if idx == 0 else max(cell_value - cell_value_prev, 0)
         if actual_diff == 0:  # skip
             continue
@@ -144,24 +152,14 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
 
     ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
 
-    # if len(x) > 40:
-    #     idx_arr = fs(40, len(x))  # 30 from all items
-    #     x_new = []
-    #     y_new = []
-    #     for idx in idx_arr:
-    #         x_new.append(x[idx])
-    #         y_new.append(y[idx])
-    #     x = x_new
-    #     y = y_new
-    # ax.xaxis.set_major_locator(plt.MaxNLocator(3))
-    # ax.yaxis.set_major_locator(plt.MaxNLocator(3))
-
-    ax.set_ylabel(stat_type.to_name().title())
-    ax.set_title(f'{country_name} – Daily New {stat_type.to_name().title()}')
+    ax.set_ylabel(stat_type.to_title().title())
+    ax.set_title(f'{country_name} – Daily {stat_type.to_title().title()}')
 
     bar = ax.bar(x, y, zorder=3, alpha=0.65, color='#b2b2b2')  # grid behind the bars
     ax.xaxis_date()
     ax.grid(zorder=0)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
     my_fmt = DateFormatter("%b %d")
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
@@ -177,44 +175,159 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
 
     # draw_text_bar_vert(bar)
     plt.tight_layout()
-
     return fig, ax
 
 
-def get_axis_avg_plot(country_data, stat_type: StatType):
+def generate_country_active_plot_per_million(country: Country, stat_type: StatType) -> Optional[
+    Tuple[Any, Any]]:
+    country_data = fetch_country_data(country)
+    if country_data is None:
+        return None
+
+    country_name = country.title
+    fig, ax = plt.subplots()
+
+    people = io_utils.get_population(country_name)
+    if people == 0:  # no such country
+        return None
+    person_per_million = people // 1_000_000  # e.g. Russia: 145
+    op_calc_val = lambda y: return_per_million_val(y, person_per_million)
+    x, y = get_axis_avg_week_plot(country_data, stat_type, op_calc_val, False)
+
+    ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
+
+    ax.set_ylabel(stat_type.to_title().title())
+    ax.set_title(f'{country_name} – Daily {stat_type.to_title().title()} per million inhabitants')
+    ax.xaxis_date()
+    ax.grid(zorder=0)
+    my_fmt = DateFormatter("%b %d")
+    ax.xaxis.set_major_formatter(my_fmt)
+    fig.autofmt_xdate()  # Rotate date labels automatically
+
+    plt.tight_layout()
+    return fig, ax
+
+
+def get_plot_country_per_million(country_data: list, stat_type: StatType, person_per_million: int, fun, *args,
+                                 use_date=False):
     x = []
     y = []
-    avg = []
+    counter = 0
+    for idx, item in enumerate(country_data):
+        cell_value = virus_utils.num(item[stat_type.to_data_name()])
+        if cell_value < 1:
+            continue
+        # since api means only total values
+        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_data_name()])
+        actual_diff = cell_value if idx == 0 else max(cell_value - cell_value_prev, 0)
+        if actual_diff == 0:  # skip
+            continue
+
+        cases_per_million = actual_diff // person_per_million  # Russia avg=10k, 10k / 145
+        if cases_per_million < 3:  # show only those that reached 3 cases per million
+            continue
+
+        if use_date:
+            dt = get_datetime_obj(item)
+            x.append(dt)
+        else:
+            counter = counter + 1
+            x.append(counter)
+        y.append(cases_per_million)
+    return x, y
+
+
+def generate_world_stat_10_per_million(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
+    data = virus_utils.fetch_pomper_stat()
+    if data is None:
+        print('Data is not found')
+        return None
+
+    most_areas = get_most_countries(data, stat_type)
+    fig, ax = plt.subplots()
+
+    for k, v in most_areas:
+        country_name = v[0]['title']
+        dates = v[0]['dates']
+        people = io_utils.get_population(country_name)
+        if people == 0:  # no such country
+            continue
+        person_per_million = people // 1_000_000  # e.g. Russia: 145
+
+        # pass custom function to calc Y value
+        op_calc_val = lambda y: return_per_million_val(y, person_per_million)
+        x, y = get_axis_avg_week_plot(dates, stat_type, op_calc_val, False)
+
+        ax.plot(x, y, label=country_name)  # for each country
+
+    ax.set_ylabel(stat_type.to_title().title())
+    ax.set_title(f'Daily COVID-19 {stat_type.to_title().title()} per million inhabitants')
+
+    # Show the major grid lines with dark grey lines
+    plt.grid(b=True, which='major', color='#666666', linestyle='-')
+
+    plt.minorticks_on()
+    plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
+    plt.xlabel(f'Day number after reaching 3 {stat_type.to_title().lower()} per million inhabitants')
+    plt.legend(loc="upper left", prop={'size': 10})
+    return fig, ax
+
+
+def return_input_arg(val: int) -> int:
+    return val
+
+
+def return_per_million_val(val: int, person_per_million: int) -> int:
+    return val // person_per_million  # e.g. Russia avg in May cases=10k, 10k / 145
+
+
+def get_axis_avg_week_plot(country_data: list, stat_type: StatType, op_calc_val=lambda y: return_input_arg(y),
+                           use_date: bool = True):
+    x = []
+    y = []
+    avg_y = []
     summa = 0
     window_size = 7
 
+    counter = 0
     skip_first_empty = True  # skip first empty data
     for idx, item in enumerate(country_data):
-        cell_value = virus_utils.num(item[stat_type.to_name()])
+        counter = counter + 1
+        cell_value = virus_utils.num(item[stat_type.to_data_name()])
         if skip_first_empty and cell_value < 1:
             continue
 
         skip_first_empty = False
         # since api means only total values
-        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_name()])
+        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_data_name()])
         actual_diff = cell_value if idx == 0 else max(cell_value - cell_value_prev, 0)
         if actual_diff == 0:  # skip
             continue
 
         index = len(y)
-        dt = get_datetime_obj(item)
-        x.append(dt)
         y.append(actual_diff)
 
         summa = summa + actual_diff
         if index >= window_size:
             summa = summa - y[index - window_size]  # throw away first edge
-            avg_val = summa / window_size
+            avg_val = summa // window_size
         else:
-            avg_val = summa / len(y)
-        avg.append(avg_val)
+            avg_val = summa // len(y)
 
-    return x, avg
+        output = op_calc_val(avg_val)
+        if output < 3:  # skip almost empty values
+            continue
+
+        if use_date:
+            dt = get_datetime_obj(item)
+            x.append(dt)
+        else:
+            x.append(counter)
+        avg_y.append(output)
+
+    return x, avg_y
 
 
 def generate_country_toll_plot_avg(country: Country, stat_type: StatType) -> Optional[Tuple[Any, Any]]:
@@ -225,14 +338,20 @@ def generate_country_toll_plot_avg(country: Country, stat_type: StatType) -> Opt
 
     fig, ax = plt.subplots()
 
-    x, avg = get_axis_avg_plot(country_data, stat_type)
-    ax.plot(x, avg, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
+    x, avg_y = get_axis_avg_week_plot(country_data=country_data, stat_type=stat_type, use_date=True)
+    ax.plot(x, avg_y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
 
-    ax.set_ylabel(stat_type.to_name().title())
-    ax.set_title(f'{country_name} – {stat_type.to_name().title()} (7-day rolling average)')
-
+    ax.set_ylabel(stat_type.to_title().title())
+    ax.set_title(f'{country_name} – {stat_type.to_title().title()} (7-day rolling average)')
     ax.xaxis_date()
-    ax.grid(zorder=0)
+
+    # Show the major grid lines with dark grey lines
+    plt.grid(zorder=0, b=True, which='major', color='#666666', linestyle='-')
+
+    plt.minorticks_on()
+    plt.grid(zorder=0, b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
     my_fmt = DateFormatter("%b %d")
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
@@ -243,7 +362,7 @@ def get_most_countries(data: any, stat_type: StatType) -> list:
     # get only 10 most countries
     dct = defaultdict(list)
     for country_title, dates in data.items():
-        total = dates[-1][stat_type.to_name()]  # just last element
+        total = dates[-1][stat_type.to_data_name()]  # just last element
         dct[total].append({'title': country_title, 'dates': dates})
 
     sorted_dict = sorted(dct.items(), reverse=True)
@@ -264,7 +383,7 @@ def generate_toll_plot_avg(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
         country_name = v[0]['title']
         country_data = v[0]['dates']
 
-        x, avg = get_axis_avg_plot(country_data=country_data, stat_type=stat_type)
+        x, avg = get_axis_avg_week_plot(country_data=country_data, stat_type=stat_type, use_date=True)
         ax.plot(x, avg, label=country_name)  # for each country
 
         # draw text of the country near the last point
@@ -272,20 +391,24 @@ def generate_toll_plot_avg(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
         #  point = (x[len(x) - 1], avg[len(avg) - 1])
         #  ax.annotate(country_name, point)
 
-    ax.set_ylabel(stat_type.to_name().title())
-    ax.set_title(f'{stat_type.to_name().title()} (7-day rolling average)')
+    ax.set_ylabel(stat_type.to_title().title())
+    ax.set_title(f'{stat_type.to_title().title()} (7-day rolling average)')
 
     ax.xaxis_date()
-    ax.grid(zorder=0)
+
+    # Show the major grid lines with dark grey lines
+    plt.grid(zorder=0, b=True, which='major', color='#666666', linestyle='-')
+
+    plt.minorticks_on()
+    plt.grid(zorder=0, b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
+    ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
     my_fmt = DateFormatter("%b %d")
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
 
-    plt.grid(True)
     plt.xlabel('Day')
-    plt.ylabel(stat_type.to_name().title())
     plt.legend(loc="upper left")
-
     return fig, ax
 
 
@@ -308,7 +431,7 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
     x = []
     y = []
     for item in country_data:
-        cell_value = virus_utils.num(item[stat_type.to_name()])
+        cell_value = virus_utils.num(item[stat_type.to_data_name()])
         if cell_value < 1:
             continue
 
@@ -322,8 +445,8 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
 
     ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
 
-    ax.set_ylabel(stat_type.to_name().title())
-    ax.set_title(f'{country_name} – {stat_type.to_name().title()} Total statistics')
+    ax.set_ylabel(stat_type.to_title().title())
+    ax.set_title(f'{country_name} – {stat_type.to_title().title()} Total statistics')
 
     bar = ax.bar(x, y, zorder=3, alpha=0.65, color='#b2b2b2')  # grid behind the bars
     ax.xaxis_date()
@@ -339,106 +462,3 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
     plt.tight_layout()
 
     return fig, ax
-
-
-def show_stat_new(country_name: Country, stat_type: StatType):
-    country = fetch_country_data(country_name)
-    if country is None:
-        return None
-
-    x = []
-    y = []
-    cnt = 0
-    for item in country:
-        cnt += 1
-        x.append(cnt)
-        if stat_type == StatType.DEATHS:
-            y.append(item['deaths'])
-        elif stat_type == StatType.CONFIRMED:
-            y.append(item['confirmed'])
-        else:
-            y.append(item['recovered'])
-
-    plt.plot(x, y)
-    plt.xlabel('Day')
-
-    if stat_type == StatType.DEATHS:
-        plt.ylabel('Deaths')
-    elif stat_type == StatType.CONFIRMED:
-        plt.ylabel('Confirmed')
-    else:
-        plt.ylabel('Recovered')
-
-    plt.show()
-
-
-def show_deaths_stat_new(country_name: Country):
-    show_stat_new(country_name, StatType.DEATHS)
-
-
-def show_cases_stat_new(country_name: Country):
-    show_stat_new(country_name, StatType.CONFIRMED)
-
-
-def show_recovered_stat_new(country_name: Country):
-    show_stat_new(country_name, StatType.RECOVERED)
-
-
-def show_deaths_stat(country: Country):
-    country_name = country.serverId
-    data = virus_utils.fetch_timeseries_report_deaths()
-    if len(data) > 0:
-        country_name = country_name.lower()
-        found_country = None
-        for item in data:
-            name = item.get_location_name().lower()
-            if country_name == name:
-                found_country = item
-
-        if country_name is None:
-            print('Such country is not found')
-            return
-
-        x = []
-        y = []
-        cnt = 0
-        for k, v in found_country.dates.items():
-            cnt += 1
-            x.append(cnt)
-            y.append(v)
-
-        plt.plot(x, y)
-        plt.xlabel('Day')
-        plt.ylabel('Deaths')
-        plt.show()
-
-
-def show_deaths_most_10():
-    data = virus_utils.fetch_timeseries_report_deaths()
-    x = []
-    y = []
-
-    dct = defaultdict(list)
-    for item in data:
-        dct[item.total].append(item.get_location_name())
-
-    sorted_dict = sorted(dct.items(), reverse=True)
-    most_areas = sorted_dict[:10]
-
-    for k, v in most_areas:
-        y.append(k)
-        x.append(v[0])
-
-    objects = x
-    y_pos = np.arange(len(objects))
-    performance = y
-
-    plt.barh(y_pos, performance, align='center', alpha=0.5)
-    plt.yticks(y_pos, objects)
-    plt.xlabel('Deaths')
-    plt.title('Deaths statistics – 10 Most Countries')
-
-    for i, v in enumerate(performance):
-        plt.text(v, i, " " + str(v), color='blue', va='center')
-
-    plt.show()

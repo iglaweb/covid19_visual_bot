@@ -142,4 +142,5 @@ main_test.py
 settings.txt
 timeseries_data.txt
 *.png
+temp/
 

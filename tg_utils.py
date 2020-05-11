@@ -8,7 +8,6 @@ from matplotlib.figure import Figure
 import io_utils
 from models import GraphType, Country
 
-
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
