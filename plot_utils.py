@@ -11,6 +11,8 @@ import io_utils
 import virus_utils
 from models import StatType, Country
 
+fs = lambda m, n: [i * n // m + n // (2 * m) for i in range(m)]
+
 
 def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
     data = virus_utils.fetch_pomper_stat()
@@ -48,12 +50,12 @@ def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
     plt.minorticks_on()
     plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 
-    plt.xlabel('Day')
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    plt.xlabel(f'Day\nData updated: {date_update_str}')
     plt.ylabel(stat_type.to_title().title())
     plt.legend(loc="upper left")
 
     ax.set_title(f'{stat_type.to_title().title()} statistics – 10 Most Countries')
-
     return fig, ax
 
 
@@ -92,11 +94,17 @@ def generate_bar_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]
     ax.set_yticklabels(x)
     ax.set_yticks(np.arange(len(x)))
 
-    ax.set_xlabel(stat_type.to_title().title())
+    # format big values
+    ax.xaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
+
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    ax.set_xlabel(f'{stat_type.to_title().title()}\nData updated: {date_update_str}')
     ax.set_title(f'{stat_type.to_title().title()} statistics – 10 Most Countries')
 
     for i, count in enumerate(y):
         ax.text(count, i, " " + f'{count:,}', color='blue', va='center')  # print big nums with comma
+
+    plt.tight_layout()
     return fig, ax
 
 
@@ -124,9 +132,6 @@ def get_datetime_obj(item: any) -> datetime:
     return dt
 
 
-fs = lambda m, n: [i * n // m + n // (2 * m) for i in range(m)]
-
-
 def generate_country_active_plot(country: Country, stat_type: StatType) -> Optional[Tuple[Any, Any]]:
     country_data = fetch_country_data(country)
     if country_data is None:
@@ -151,6 +156,9 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
         y.append(actual_diff)
 
     ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
+
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    plt.xlabel(f'Data updated: {date_update_str}')
 
     ax.set_ylabel(stat_type.to_title().title())
     ax.set_title(f'{country_name} – Daily {stat_type.to_title().title()}')
@@ -270,7 +278,10 @@ def generate_world_stat_10_per_million(stat_type: StatType) -> Optional[Tuple[An
     plt.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
 
     ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
-    plt.xlabel(f'Day number after reaching 3 {stat_type.to_title().lower()} per million inhabitants')
+
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    plt.xlabel(
+        f'Day number after reaching 3 {stat_type.to_title().lower()} per million inhabitants\nData updated: {date_update_str}')
     plt.legend(loc="upper left", prop={'size': 10})
     return fig, ax
 
@@ -407,7 +418,8 @@ def generate_toll_plot_avg(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
 
-    plt.xlabel('Day')
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    plt.xlabel(f'Day\nData updated: {date_update_str}')
     plt.legend(loc="upper left")
     return fig, ax
 
@@ -444,6 +456,9 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
     ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
 
     ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
+
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    plt.xlabel(f'Data updated: {date_update_str}')
 
     ax.set_ylabel(stat_type.to_title().title())
     ax.set_title(f'{country_name} – {stat_type.to_title().title()} Total statistics')

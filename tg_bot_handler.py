@@ -5,8 +5,7 @@ import os
 
 import telegram
 from bottle import Bottle, response, request as bottle_request
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, Update
-from telegram.ext import CallbackContext
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 
 import io_utils
 import plot_utils
@@ -20,10 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class TelegramBot:
-
-    def echo(update: Update, context: CallbackContext):
-        """Echo the user message."""
-        update.message.reply_text(update.message.text)
 
     def error(update, context):
         """Log Errors caused by Updates."""

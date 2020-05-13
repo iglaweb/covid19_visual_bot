@@ -13,8 +13,7 @@ import requests
 from dateutil.parser import parse as parsedate
 
 import io_utils
-from models import Country, Countries
-from virus_model import TimeSeriesItem
+from models import Country, Countries, TimeSeriesItem
 
 timeseries_url = 'https://pomber.github.io/covid19/timeseries.json'
 
@@ -31,18 +30,6 @@ TIMOUT_SEC = 3 * 60 * 60  # 3 hours in seconds
 pref_country_persist = {}
 
 
-def read_prefs() -> Optional[dict]:
-    if os.path.exists(io_utils.get_prefs_path()) is False:
-        return {}
-    with open(io_utils.get_prefs_path(), 'r') as fp:
-        return json.load(fp)
-
-
-def write_config(data):
-    with open(io_utils.get_prefs_path(), 'w') as fp:
-        json.dump(data, fp)
-
-
 def read_pref_country(user_id: int) -> Country:
     country = pref_country_persist.get(user_id)
     if country is None:
@@ -52,22 +39,6 @@ def read_pref_country(user_id: int) -> Country:
 
 def write_pref_country(user_id: int, country: Countries):
     pref_country_persist[user_id] = country.displayValue
-
-
-def read_pref_date() -> int:
-    if os.path.exists(io_utils.get_prefs_path()) is False:
-        return 0
-    config = read_prefs()
-    datetime_val = config.get('datetime')  # not square
-    if datetime_val is None:
-        return 0
-    return int(datetime_val)
-
-
-def write_pref_date(date: int):
-    config = read_prefs()
-    config['datetime'] = str(date)
-    write_config(config)
 
 
 def is_remote_file_changed(since_timestamp: int) -> bool:
@@ -80,16 +51,21 @@ def is_remote_file_changed(since_timestamp: int) -> bool:
     return True  # default changed
 
 
+def get_formatted_datetime_change_data() -> str:
+    datetime_stamp = io_utils.read_pref_date()
+    return time.strftime('%b %d %Y %H:%M:%S %Z', time.gmtime(datetime_stamp))
+
+
 def should_update_data() -> bool:
-    if os.path.exists(io_utils.get_data_path()) is False:  # no source data exists
+    if os.path.exists(io_utils.get_timeseries_data_path()) is False:  # no source data exists
         return True
     sec_now = int(time.time())  # current time
-    last_time_update_sec = int(os.path.getmtime(io_utils.get_data_path()))
-    timeout_expired = sec_now - last_time_update_sec >= TIMOUT_SEC  # need to update date
-    if timeout_expired is False:
+    last_time_modification_sec = int(os.path.getmtime(io_utils.get_timeseries_data_path()))
+    timeout_expire_diff = sec_now - last_time_modification_sec  # need to update date
+    if timeout_expire_diff < TIMOUT_SEC:
         return False  # file is already up to date
 
-    datetime_stamp = read_pref_date()
+    datetime_stamp = io_utils.read_pref_date()
     is_remote_changed = is_remote_file_changed(datetime_stamp)
     return is_remote_changed
 
@@ -98,8 +74,8 @@ def fetch_pomper_stat() -> Optional[dict]:
     should_refresh = should_update_data()
     if should_refresh is False:
         # try to return cached data
-        if os.path.exists(io_utils.get_data_path()):
-            with open(io_utils.get_data_path()) as json_file:
+        if os.path.exists(io_utils.get_timeseries_data_path()):
+            with open(io_utils.get_timeseries_data_path()) as json_file:
                 data = json.load(json_file)
                 return data
 
@@ -110,12 +86,11 @@ def fetch_pomper_stat() -> Optional[dict]:
         url_date = parsedate(date_timestamp)
 
         ts = time.mktime(url_date.timetuple())
-        write_pref_date(int(ts))
+        io_utils.write_pref_date(int(ts))
 
         json_data = req.json()
         # save file
-        with open(io_utils.get_data_path(), 'w') as outfile:  # create or overwrite
-            json.dump(json_data, outfile)
+        io_utils.write_timeseries_data(json_data)
         return json_data  # the response is a JSON
     return None
 

@@ -1,6 +1,7 @@
 import csv
+import json
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import virus_utils
 from models import GraphType, GRAPH_TYPES, Country
@@ -319,9 +320,43 @@ def get_photo_path_url(graph_type: GraphType, country: Country = None) -> str:
         return get_photo_path_country(graph_type, country.value)
 
 
-def get_data_path() -> str:
+def get_timeseries_data_path() -> str:
     return f'{dir_path}timeseries_data.txt'
 
 
 def get_prefs_path() -> str:
     return f'{dir_path}settings.txt'
+
+
+def write_timeseries_data(json_data: str):
+    # save file
+    with open(get_timeseries_data_path(), 'w') as outfile:  # create or overwrite
+        json.dump(json_data, outfile)
+
+
+def read_prefs() -> Optional[dict]:
+    if os.path.exists(get_prefs_path()) is False:
+        return {}
+    with open(get_prefs_path(), 'r') as fp:
+        return json.load(fp)
+
+
+def read_pref_date() -> int:
+    if os.path.exists(get_prefs_path()) is False:
+        return 0
+    config = read_prefs()
+    datetime_val = config.get('datetime')  # not square
+    if datetime_val is None:
+        return 0
+    return int(datetime_val)
+
+
+def write_config(data):
+    with open(get_prefs_path(), 'w') as fp:
+        json.dump(data, fp)
+
+
+def write_pref_date(date: int):
+    config = read_prefs()
+    config['datetime'] = str(date)
+    write_config(config)

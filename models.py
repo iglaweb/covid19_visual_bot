@@ -1,6 +1,8 @@
 from collections import namedtuple
 from enum import Enum, IntEnum
 
+from dataclasses import dataclass
+
 Country = namedtuple('Country', ['value', 'serverId', 'flag', 'title'])
 
 
@@ -123,3 +125,15 @@ GRAPH_TYPES = {
 
     GraphType.CONFIRMED_1M_PEOPLE: 'confirmed_1m_people'
 }
+
+
+@dataclass
+class TimeSeriesItem:
+    """Class for keeping track of an item in inventory."""
+    country: str
+    region: str
+    dates: dict
+    total: int
+
+    def get_location_name(self) -> str:
+        return self.region if not self.country else self.country
