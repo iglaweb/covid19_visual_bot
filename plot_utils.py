@@ -102,8 +102,10 @@ def generate_bar_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]
     ax.set_title(f'{stat_type.to_title().title()} statistics – 10 Most Countries')
 
     for i, count in enumerate(y):
-        ax.text(count, i, " " + f'{count:,}', color='blue', va='center')  # print big nums with comma
+        ax.text(count, i, " " + f'{count:,}', color='black', va='center')  # print big nums with comma
 
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     plt.tight_layout()
     return fig, ax
 
@@ -141,6 +143,7 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
     fig, ax = plt.subplots()
     x = []
     y = []
+    y_recovered = []
     for idx, item in enumerate(country_data):
         cell_value = virus_utils.num(item[stat_type.to_data_name()])
         if cell_value < 1:
@@ -155,7 +158,18 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
         x.append(dt)
         y.append(actual_diff)
 
-    ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
+        if stat_type == StatType.CONFIRMED:
+            cell_value_r = virus_utils.num(item[StatType.RECOVERED.to_data_name()])
+            cell_value_prev_r = cell_value_r if idx == 0 else virus_utils.num(
+                country_data[idx - 1][StatType.RECOVERED.to_data_name()])
+            actual_diff_r = cell_value_r if idx == 0 else max(cell_value_r - cell_value_prev_r, 0)
+            y_recovered.append(actual_diff_r)
+
+    ax.plot(x, y, marker='', linewidth=1.5, label=stat_type.to_title().title())  # for each country
+    if len(y_recovered) > 0:
+        ax.plot(x, y_recovered, marker='', linewidth=1.5,
+                label=StatType.RECOVERED.to_title().title())  # for each country
+        plt.legend(loc="upper left")
 
     date_update_str = virus_utils.get_formatted_datetime_change_data()
     plt.xlabel(f'Data updated: {date_update_str}')
@@ -163,7 +177,6 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
     ax.set_ylabel(stat_type.to_title().title())
     ax.set_title(f'{country_name} – Daily {stat_type.to_title().title()}')
 
-    bar = ax.bar(x, y, zorder=3, alpha=0.65, color='#b2b2b2')  # grid behind the bars
     ax.xaxis_date()
     ax.grid(zorder=0)
 
@@ -171,15 +184,6 @@ def generate_country_active_plot(country: Country, stat_type: StatType) -> Optio
     my_fmt = DateFormatter("%b %d")
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
-
-    # zip joins x and y coordinates in pairs
-    for xs, ys in zip(x, y):
-        label = ys
-        plt.annotate(label,  # this is the text
-                     (xs, ys),  # this is the point to label
-                     textcoords="offset points",  # how to position the text
-                     xytext=(-10, 0),  # distance from text to points (x,y)
-                     ha='right')  # horizontal alignment can be left, right or center
 
     # draw_text_bar_vert(bar)
     plt.tight_layout()
@@ -442,6 +446,7 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
     fig, ax = plt.subplots()
     x = []
     y = []
+    y_recovered = []
     for item in country_data:
         cell_value = virus_utils.num(item[stat_type.to_data_name()])
         if cell_value < 1:
@@ -453,9 +458,16 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
         # if show_only_weeks is False or dt.weekday() == 0:  # monday only or add all, decrease data
         y.append(cell_value)
 
+        if stat_type == StatType.CONFIRMED:
+            val_recovered = virus_utils.num(item[StatType.RECOVERED.to_data_name()])
+            y_recovered.append(val_recovered)
+
     ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
 
-    ax.plot(x, y, marker='', color='#EF7028', linewidth=2.5, label=country_name)  # for each country
+    ax.plot(x, y, marker='', linewidth=2, label=stat_type.to_title().title())  # for each country
+    if len(y_recovered) > 0:
+        ax.plot(x, y_recovered, marker='', linewidth=2, label=StatType.RECOVERED.to_title().title())  # for each country
+        plt.legend(loc="upper left")
 
     date_update_str = virus_utils.get_formatted_datetime_change_data()
     plt.xlabel(f'Data updated: {date_update_str}')
@@ -463,17 +475,11 @@ def generate_country_total_plot(country: Country, stat_type: StatType) -> Option
     ax.set_ylabel(stat_type.to_title().title())
     ax.set_title(f'{country_name} – {stat_type.to_title().title()} Total statistics')
 
-    bar = ax.bar(x, y, zorder=3, alpha=0.65, color='#b2b2b2')  # grid behind the bars
     ax.xaxis_date()
     ax.grid(zorder=0)
     my_fmt = DateFormatter("%b %d")
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
 
-    # Add counts above the two bar graphs
-    for rect in bar:
-        height = rect.get_height()
-        plt.text(rect.get_x() + rect.get_width() / 2.0, height, '%d' % int(height), ha='center', va='bottom')
     plt.tight_layout()
-
     return fig, ax
