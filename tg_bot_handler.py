@@ -278,7 +278,7 @@ class TelegramBot:
                     graph_type == GraphType.RECOVERED_WEEK:
                 plot_tuple = plot_utils.generate_toll_plot_avg(stat_type)
             else:
-                plot_tuple = plot_utils.generate_world_stat_10(stat_type)
+                plot_tuple = plot_utils.generate_world_stat_10(stat_type, False)
 
             if plot_tuple is not None:
                 fig, ax = plot_tuple

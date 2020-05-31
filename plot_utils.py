@@ -1,3 +1,4 @@
+import math
 from collections import defaultdict
 from datetime import datetime
 from typing import Tuple, Any, Optional
@@ -6,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.dates import DateFormatter
 from matplotlib.ticker import FuncFormatter
+from scipy import stats
 
 import io_utils
 import virus_utils
@@ -14,32 +16,89 @@ from models import StatType, Country
 fs = lambda m, n: [i * n // m + n // (2 * m) for i in range(m)]
 
 
-def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
+def parse_date(date_str: str) -> datetime:
+    group = date_str.split("-")
+    year = virus_utils.num(group[0])
+    month = virus_utils.num(group[1])
+    day = virus_utils.num(group[2])
+    return datetime(year=year, month=month, day=day)
+
+
+def draw_plot(country: Country, stat_type: StatType):
+    country_data = fetch_country_data(country)
+    if country_data is None:
+        print('Country data is missing')
+        return None
+    country_name = country.title
+
+    fig, ax = plt.subplots()
+    x = []
+    for idx, item in enumerate(country_data):
+        cell_value = virus_utils.num(item[stat_type.to_data_name()])
+        if cell_value < 1:
+            continue
+        # since api means only total values
+        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_data_name()])
+        actual_diff = cell_value if idx == 0 else max(cell_value - cell_value_prev, 0)
+        if actual_diff == 0:  # skip
+            continue
+        x.append(actual_diff)
+
+    x.sort()
+    mu = sum(x) / len(x)
+    variance = sum((xi - mu) ** 2 for xi in x) / len(x)
+    # variance2 = np.std(x)
+    sigma = math.sqrt(variance)
+    plt.plot(x, stats.norm.pdf(x, mu, sigma))
+    plt.show()
+
+
+def generate_world_mortality_rate_10() -> Optional[Tuple[Any, Any]]:
     data = virus_utils.fetch_pomper_stat()
     if data is None:
         print('Data is not found')
         return None
 
-    most_areas = get_most_countries(data, stat_type)
+    dct = defaultdict(float)
+    dct_dates = defaultdict(list)
+    data_items = data.items()
+    for country_title, dates in data_items:
+        if country_title == 'MS Zaandam':
+            continue  # skip ship liner
+        latest_date = dates[-1]
+        confirmed = latest_date[StatType.CONFIRMED.to_data_name()]  # just last element
+        deaths = latest_date[StatType.DEATHS.to_data_name()]  # just last element
+        if confirmed == 0: continue
+        mortality_rate: float = deaths / confirmed
+        dct[country_title] = mortality_rate
+        dct_dates[country_title] = dates
+
+    sorted_dict = sorted(dct.items(), key=lambda k_v: k_v[1], reverse=True)
+    most_areas = sorted_dict[:10]  # 10 most countries
+
     fig, ax = plt.subplots()
 
     for k, v in most_areas:
-        x = []
-        y = []
-        for date in v[0]['dates']:
-            date_str = date['date']
-            group = date_str.split("-")
-            year = virus_utils.num(group[0])
-            month = virus_utils.num(group[1])
-            day = virus_utils.num(group[2])
-            dt = datetime(year=year, month=month, day=day)
+        country_title = k
+        country_data = dct_dates[k]
+        if country_data is not None:
+            x = []
+            y = []
+            for date in country_data:
+                confirmed = date[StatType.CONFIRMED.to_data_name()]  # just last element
+                deaths = date[StatType.DEATHS.to_data_name()]  # just last element
+                if confirmed == 0: continue
+                mortality_rate: float = deaths / confirmed
 
-            x.append(dt)
-            cell_value = date[stat_type.to_data_name()]
-            y.append(virus_utils.num(cell_value))
-        ax.plot(x, y, label=v[0]['title'])  # for each country
+                cell_value = mortality_rate * 100  # convert to percent
+                date_str: str = date['date']
+                dt: datetime = parse_date(date_str)
+                x.append(dt)
+                y.append(cell_value)
 
-    ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
+            ax.plot(x, y, label=country_title)  # for each country
+
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda y, _: '{val:d}{suffix}'.format(val=int(y), suffix='%')))
     my_fmt = DateFormatter("%b %d")
     ax.xaxis.set_major_formatter(my_fmt)
     fig.autofmt_xdate()  # Rotate date labels automatically
@@ -52,10 +111,104 @@ def generate_world_stat_10(stat_type: StatType) -> Optional[Tuple[Any, Any]]:
 
     date_update_str = virus_utils.get_formatted_datetime_change_data()
     plt.xlabel(f'Day\nData updated: {date_update_str}')
-    plt.ylabel(stat_type.to_title().title())
+    plt.ylabel('Fatality rate')
     plt.legend(loc="upper left")
 
-    ax.set_title(f'{stat_type.to_title().title()} statistics – 10 Most Countries')
+    ax.set_title('Case fatality rate of the ongoing COVID-19 pandemic')
+    return fig, ax
+
+
+def generate_world_stat_10(stat_type: StatType, active: bool = False, country: Country = None,
+                           ax: any = None) -> Optional[
+    Tuple[Any, Any]]:
+    data = virus_utils.fetch_pomper_stat()
+    if data is None:
+        print('Data is not found')
+        return None
+
+    most_areas = get_most_countries(data, stat_type)
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = None
+
+    country_data = None
+    for k, v in most_areas:
+        x = []
+        y = []
+        idx = -1
+        dates = v[0]['dates']
+        for date in dates:
+            idx = idx + 1
+            cell_value = virus_utils.num(date[stat_type.to_data_name()])
+
+            add_val: int
+            if active:
+                if cell_value < 1:
+                    continue
+                # since api means only total values
+                cell_value_prev = cell_value if idx == 0 else virus_utils.num(
+                    dates[idx - 1][stat_type.to_data_name()])
+                actual_diff = cell_value if idx == 0 else max(cell_value - cell_value_prev, 0)
+                add_val = actual_diff
+            else:
+                add_val = cell_value
+            y.append(add_val)
+
+            date_str = date['date']
+            dt = parse_date(date_str)
+            x.append(dt)
+
+        country_title = v[0]['title']
+        line_width = 1
+        if country is not None:  # highlight country line
+            if country.serverId == country_title:
+                line_width = 2.5
+                country_data = dates
+            else:
+                line_width = 0.8
+
+        ax.plot(x, y, linewidth=line_width, label=country_title)  # for each country
+
+    # calc values
+    avg = 0
+    if country_data is not None:
+        count = 0
+        summa = 0
+        cell_value_prev = 0
+        for date in country_data[::-1]:
+            if count > 7:
+                break
+            cell_value = virus_utils.num(date[stat_type.to_data_name()])
+            if count > 0:
+                actual_diff = abs(cell_value_prev - cell_value)
+                summa = summa + actual_diff
+
+            cell_value_prev = cell_value
+            count = count + 1
+
+        avg = 0 if count == 0 else summa // count
+
+    ax.yaxis.set_major_formatter(FuncFormatter(virus_utils.reformat_large_tick_values))
+    my_fmt = DateFormatter("%b %d")
+    ax.xaxis.set_major_formatter(my_fmt)
+
+    if fig is not None:
+        fig.autofmt_xdate()  # Rotate date labels automatically
+
+    # Show the major grid lines with dark grey lines
+    ax.grid(b=True, which='major', color='#666666', linestyle='-')
+
+    ax.minorticks_on()
+    ax.grid(b=True, which='minor', color='#999999', linestyle='-', alpha=0.2)
+
+    date_update_str = virus_utils.get_formatted_datetime_change_data()
+    plt.xlabel(f'Day\nData updated: {date_update_str}')
+    plt.ylabel(stat_type.to_title().title())
+    ax.legend(loc='best')
+
+    country_label = '10 Most Countries' if country is None else f'{country.title} (avg per last 7 days = {avg})'
+    ax.set_title(f'{stat_type.to_title().title()} Statistics – {country_label}')
     return fig, ax
 
 
@@ -126,12 +279,7 @@ def fetch_country_data(country: Country) -> Optional[any]:
 
 def get_datetime_obj(item: any) -> datetime:
     date_str = item['date']
-    group = date_str.split("-")
-    year = virus_utils.num(group[0])
-    month = virus_utils.num(group[1])
-    day = virus_utils.num(group[2])
-    dt = datetime(year=year, month=month, day=day)
-    return dt
+    return parse_date(date_str)
 
 
 def generate_country_active_plot(country: Country, stat_type: StatType) -> Optional[Tuple[Any, Any]]:
