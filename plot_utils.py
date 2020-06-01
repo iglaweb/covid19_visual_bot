@@ -1,4 +1,3 @@
-import math
 from collections import defaultdict
 from datetime import datetime
 from typing import Tuple, Any, Optional
@@ -7,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.dates import DateFormatter
 from matplotlib.ticker import FuncFormatter
-from scipy import stats
 
 import io_utils
 import virus_utils
@@ -22,35 +20,6 @@ def parse_date(date_str: str) -> datetime:
     month = virus_utils.num(group[1])
     day = virus_utils.num(group[2])
     return datetime(year=year, month=month, day=day)
-
-
-def draw_plot(country: Country, stat_type: StatType):
-    country_data = fetch_country_data(country)
-    if country_data is None:
-        print('Country data is missing')
-        return None
-    country_name = country.title
-
-    fig, ax = plt.subplots()
-    x = []
-    for idx, item in enumerate(country_data):
-        cell_value = virus_utils.num(item[stat_type.to_data_name()])
-        if cell_value < 1:
-            continue
-        # since api means only total values
-        cell_value_prev = cell_value if idx == 0 else virus_utils.num(country_data[idx - 1][stat_type.to_data_name()])
-        actual_diff = cell_value if idx == 0 else max(cell_value - cell_value_prev, 0)
-        if actual_diff == 0:  # skip
-            continue
-        x.append(actual_diff)
-
-    x.sort()
-    mu = sum(x) / len(x)
-    variance = sum((xi - mu) ** 2 for xi in x) / len(x)
-    # variance2 = np.std(x)
-    sigma = math.sqrt(variance)
-    plt.plot(x, stats.norm.pdf(x, mu, sigma))
-    plt.show()
 
 
 def generate_world_mortality_rate_10() -> Optional[Tuple[Any, Any]]:
