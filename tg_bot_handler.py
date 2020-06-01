@@ -102,6 +102,11 @@ class TelegramBot:
                                        graph_type=GraphType.DEATHS_WEEK)
             return True
 
+        if text == '/fatal_rate' or text == '‎🌏 Fatal Rate':
+            self.send_photo_tg_general(stat_type=StatType.DEATHS, chat_id=chat_id,
+                                       graph_type=GraphType.DEATHS_RATE)
+            return True
+
         if text == '/cases_per_1m' or text == '‎🌏 Cases per 1M':
             self.send_photo_tg_general(stat_type=StatType.CONFIRMED, chat_id=chat_id,
                                        graph_type=GraphType.CONFIRMED_1M_PEOPLE)
@@ -213,6 +218,7 @@ class TelegramBot:
                                        [
                                            KeyboardButton(text="‎🌏 Cases AVG"),
                                            KeyboardButton(text="‎🌏 Fatal AVG"),
+                                           KeyboardButton(text="‎🌏 Fatal Rate"),
                                            KeyboardButton(text="‎🌏 Cases per 1M")
                                        ],
                                        [
@@ -269,6 +275,8 @@ class TelegramBot:
 
             if graph_type == GraphType.CONFIRMED_1M_PEOPLE:
                 plot_tuple = plot_utils.generate_world_stat_10_per_million(stat_type)
+            elif graph_type == GraphType.DEATHS_RATE:
+                plot_tuple = plot_utils.generate_world_mortality_rate_10()
             elif graph_type == GraphType.CONFIRMED_BAR or \
                     graph_type == GraphType.DEATHS_BAR or \
                     graph_type == GraphType.RECOVERED_BAR:

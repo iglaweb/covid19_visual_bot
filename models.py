@@ -100,7 +100,8 @@ class GraphType(IntEnum):
     RECOVERED_ACTIVE = 10,
     CONFIRMED_ACTIVE = 11,
 
-    CONFIRMED_1M_PEOPLE = 12
+    CONFIRMED_1M_PEOPLE = 12,
+    DEATHS_RATE = 13
 
     def to_name(self) -> str:
         return GRAPH_TYPES[self.value]
@@ -123,7 +124,8 @@ GRAPH_TYPES = {
     GraphType.RECOVERED_BAR: 'recovered_bar',
     GraphType.CONFIRMED_BAR: 'confirmed_bar',
 
-    GraphType.CONFIRMED_1M_PEOPLE: 'confirmed_1m_people'
+    GraphType.CONFIRMED_1M_PEOPLE: 'confirmed_1m_people',
+    GraphType.DEATHS_RATE: 'deaths_rate'
 }
 
 

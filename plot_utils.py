@@ -83,7 +83,7 @@ def generate_world_mortality_rate_10() -> Optional[Tuple[Any, Any]]:
     plt.ylabel('Fatality rate')
     plt.legend(loc="upper left")
 
-    ax.set_title('Case fatality rate of the ongoing COVID-19 pandemic')
+    ax.set_title('Fatality rate of COVID-19 pandemic')
     return fig, ax
 
 
